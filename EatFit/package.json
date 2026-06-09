@@ -1,0 +1,31 @@
+{
+  "name": "eatfit",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web"
+  },
+  "dependencies": {
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@supabase/supabase-js": "^2.108.1",
+    "expo": "~54.0.35",
+    "expo-auth-session": "~7.0.11",
+    "expo-crypto": "~15.0.9",
+    "expo-router": "~4.0.17",
+    "expo-status-bar": "~3.0.9",
+    "expo-web-browser": "~15.0.11",
+    "react": "19.1.0",
+    "react-native": "0.81.5"
+  },
+  "devDependencies": {
+    "@types/react": "~19.1.0",
+    "babel-plugin-dotenv-import": "^3.0.1",
+    "babel-plugin-module-resolver": "^5.0.3",
+    "expo-module-scripts": "^56.0.3",
+    "typescript": "~5.9.2"
+  },
+  "private": true
+}
