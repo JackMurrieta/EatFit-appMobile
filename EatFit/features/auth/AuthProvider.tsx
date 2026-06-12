@@ -1,18 +1,27 @@
-import { createContext, useState, useEffect } from "react";
-import { router } from "expo-router";
+import {
+  createContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
 import * as WebBrowser from "expo-web-browser";
-import * as Google from "expo-auth-session/providers/google";
+import * as Linking from "expo-linking";
+import { makeRedirectUri } from "expo-auth-session";
 import type { Session } from "@supabase/supabase-js";
+
 import {
   fetchCurrentSession,
+  subscribeToAuthChanges,
   signInWithEmail,
   signUpWithEmail,
-  signInWithGoogleToken,
   signOut,
-  subscribeToAuthChanges,
+  getGoogleOAuthUrl,
+  createSessionFromUrl,
 } from "./authService";
 
 WebBrowser.maybeCompleteAuthSession();
+
+const redirectTo = makeRedirectUri(); // usa tu scheme "eatfit"
 
 export type AuthData = {
   loading: boolean;
@@ -35,7 +44,7 @@ export const AuthContext = createContext<AuthData>({
 });
 
 interface Props {
-  children: React.ReactNode;
+  children: ReactNode;
 }
 
 export default function AuthProvider({ children }: Props) {
@@ -43,26 +52,12 @@ export default function AuthProvider({ children }: Props) {
   const [session, setSession] = useState<Session | null>(null);
   const [error, setError] = useState<Error | null>(null);
 
-  const [_, googleResponse, promptGoogleAsync] = Google.useAuthRequest({
-    webClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
-  });
-
-  // Respuesta de Google OAuth
-  useEffect(() => {
-    if (googleResponse?.type === "success") {
-      const idToken = googleResponse.authentication?.idToken;
-      if (idToken) handleGoogleToken(idToken);
-    } else if (googleResponse?.type === "error") {
-      setError(new Error("Google sign-in failed"));
-    }
-  }, [googleResponse]);
-
-  // Sesión inicial + listener
+  // Sesión inicial + listener de cambios
   useEffect(() => {
     async function init() {
       try {
-        const session = await fetchCurrentSession();
-        setSession(session);
+        const current = await fetchCurrentSession();
+        setSession(current);
       } catch (e) {
         setError(e as Error);
       } finally {
@@ -72,46 +67,32 @@ export default function AuthProvider({ children }: Props) {
 
     init();
 
-    const subscription = subscribeToAuthChanges((session) => {
-      setSession(session);
+    const subscription = subscribeToAuthChanges((next) => {
+      setSession(next);
       setError(null);
       setLoading(false);
-
-      if (session) {
-        router.replace("/");
-      } else {
-        router.replace("/signup");
-      }
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  // --- Handlers que llaman al service ---
+  // Captura el deep link de regreso del OAuth (incluye arranque en frío)
+  const url = Linking.useURL();
+  useEffect(() => {
+    if (!url) return;
+    createSessionFromUrl(url)
+      .then((s) => s && setSession(s))
+      .catch((e) => setError(e as Error));
+  }, [url]);
 
-  async function handleGoogleToken(idToken: string) {
-    try {
-      setLoading(true);
-      const session = await signInWithGoogleToken(idToken);
-      setSession(session);
-    } catch (e) {
-      setError(e as Error);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleSignInWithGoogle() {
-    setError(null);
-    await promptGoogleAsync();
-  }
+  /* ── Handlers ──────────────────────────────────────────── */
 
   async function handleSignInWithEmail(email: string, password: string) {
     try {
       setLoading(true);
       setError(null);
-      const session = await signInWithEmail(email, password);
-      setSession(session);
+      const next = await signInWithEmail(email, password);
+      setSession(next);
     } catch (e) {
       setError(e as Error);
     } finally {
@@ -123,12 +104,28 @@ export default function AuthProvider({ children }: Props) {
     try {
       setLoading(true);
       setError(null);
-      const session = await signUpWithEmail(email, password);
-      setSession(session);
+      const next = await signUpWithEmail(email, password);
+      setSession(next);
     } catch (e) {
       setError(e as Error);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleSignInWithGoogle() {
+    try {
+      setError(null);
+      const oauthUrl = await getGoogleOAuthUrl(redirectTo);
+      if (!oauthUrl) return;
+
+      const result = await WebBrowser.openAuthSessionAsync(oauthUrl, redirectTo);
+      if (result.type === "success") {
+        const next = await createSessionFromUrl(result.url);
+        if (next) setSession(next);
+      }
+    } catch (e) {
+      setError(e as Error);
     }
   }
 
