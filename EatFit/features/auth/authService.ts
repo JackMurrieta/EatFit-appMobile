@@ -47,12 +47,23 @@ export async function getGoogleOAuthUrl(redirectTo: string) {
   return data.url;
 }
 
-// Extrae los tokens de la URL de regreso y crea la sesión
+// Extrae los tokens de la URL de regreso y crea la sesión.
+// Supabase v2 usa PKCE por defecto en apps nativas (detectSessionInUrl: false),
+// por lo que la URL trae ?code=XXX en lugar de #access_token=XXX.
 export async function createSessionFromUrl(url: string) {
   const { params, errorCode } = QueryParams.getQueryParams(url);
   if (errorCode) throw new Error(errorCode);
 
-  const { access_token, refresh_token } = params;
+  const { access_token, refresh_token, code } = params;
+
+  // PKCE flow (Supabase v2 default para React Native)
+  if (code) {
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+    if (error) throw error;
+    return data.session;
+  }
+
+  // Implicit flow (fallback)
   if (!access_token) return null;
 
   const { data, error } = await supabase.auth.setSession({

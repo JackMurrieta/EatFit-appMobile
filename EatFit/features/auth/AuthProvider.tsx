@@ -1,6 +1,7 @@
 import {
   createContext,
   useEffect,
+  useMemo,
   useState,
   type ReactNode,
 } from "react";
@@ -21,10 +22,9 @@ import {
 
 WebBrowser.maybeCompleteAuthSession();
 
-const redirectTo = makeRedirectUri(); // usa tu scheme "eatfit"
-
 export type AuthData = {
-  loading: boolean;
+  initializing: boolean; // arranque: ¿ya sabemos si hay sesión?
+  submitting: boolean; // acción en curso (para los botones)
   session: Session | null;
   error: Error | null;
   signInWithEmail: (email: string, password: string) => Promise<void>;
@@ -33,127 +33,128 @@ export type AuthData = {
   signOut: () => Promise<void>;
 };
 
-export const AuthContext = createContext<AuthData>({
-  loading: true,
-  session: null,
-  error: null,
-  signInWithEmail: async () => {},
-  signUpWithEmail: async () => {},
-  signInWithGoogle: async () => {},
-  signOut: async () => {},
-});
+export const AuthContext = createContext<AuthData | undefined>(undefined);
 
 interface Props {
   children: ReactNode;
 }
 
 export default function AuthProvider({ children }: Props) {
-  const [loading, setLoading] = useState(true);
+  const [initializing, setInitializing] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [error, setError] = useState<Error | null>(null);
 
-  // Sesión inicial + listener de cambios
+  // 1) Sesión inicial + listener (ÚNICA fuente de verdad de `session`)
   useEffect(() => {
-    async function init() {
-      try {
-        const current = await fetchCurrentSession();
-        setSession(current);
-      } catch (e) {
-        setError(e as Error);
-      } finally {
-        setLoading(false);
-      }
-    }
+    let mounted = true;
 
-    init();
+    fetchCurrentSession()
+      .then((current) => mounted && setSession(current))
+      .catch((e) => mounted && setError(e as Error))
+      .finally(() => mounted && setInitializing(false));
 
     const subscription = subscribeToAuthChanges((next) => {
-      setSession(next);
+      if (!mounted) return;
+      setSession(next); // aquí se actualiza la sesión SIEMPRE
       setError(null);
-      setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
-  // Captura el deep link de regreso del OAuth (incluye arranque en frío)
+  // 2) Deep link de regreso del OAuth (cubre arranque en frío)
   const url = Linking.useURL();
   useEffect(() => {
     if (!url) return;
-    createSessionFromUrl(url)
-      .then((s) => s && setSession(s))
-      .catch((e) => setError(e as Error));
+    // Solo procesar URLs que contengan tokens OAuth (evita llamadas con URLs vacías)
+    if (!url.includes("access_token") && !url.includes("code=")) return;
+    createSessionFromUrl(url).catch((e) => setError(e as Error));
   }, [url]);
 
-  /* ── Handlers ──────────────────────────────────────────── */
+  /* ── Handlers: disparan la acción, NO tocan `session` ─────── */
 
   async function handleSignInWithEmail(email: string, password: string) {
     try {
-      setLoading(true);
+      setSubmitting(true);
       setError(null);
-      const next = await signInWithEmail(email, password);
-      setSession(next);
+      await signInWithEmail(email, password); // el listener pone la sesión
     } catch (e) {
       setError(e as Error);
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   }
 
   async function handleSignUpWithEmail(email: string, password: string) {
     try {
-      setLoading(true);
+      setSubmitting(true);
       setError(null);
-      const next = await signUpWithEmail(email, password);
-      setSession(next);
+      await signUpWithEmail(email, password);
     } catch (e) {
       setError(e as Error);
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   }
 
   async function handleSignInWithGoogle() {
     try {
+      setSubmitting(true);
       setError(null);
+      const redirectTo = makeRedirectUri();
       const oauthUrl = await getGoogleOAuthUrl(redirectTo);
-      if (!oauthUrl) return;
-
-      const result = await WebBrowser.openAuthSessionAsync(oauthUrl, redirectTo);
-      if (result.type === "success") {
-        const next = await createSessionFromUrl(result.url);
-        if (next) setSession(next);
+      if (!oauthUrl) {
+        setError(new Error("No se pudo obtener la URL de Google"));
+        return;
       }
+      const result = await WebBrowser.openAuthSessionAsync(
+        oauthUrl,
+        redirectTo,
+      );
+      if (result.type === "success") {
+        await createSessionFromUrl(result.url); // el listener actualiza la sesión
+      }
+      // "cancel" / "dismiss": el usuario cerró el navegador, no es error
     } catch (e) {
       setError(e as Error);
+    } finally {
+      setSubmitting(false);
     }
   }
 
   async function handleSignOut() {
     try {
-      setLoading(true);
-      await signOut();
-      setSession(null);
+      setSubmitting(true);
+      await signOut(); // el listener pondrá session = null
     } catch (e) {
       setError(e as Error);
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   }
 
+  // 3) Memoiza el value para no re-renderizar consumidores de más
+  const value = useMemo<AuthData>(
+    () => ({
+      initializing,
+      submitting,
+      session,
+      error,
+      signInWithEmail: handleSignInWithEmail,
+      signUpWithEmail: handleSignUpWithEmail,
+      signInWithGoogle: handleSignInWithGoogle,
+      signOut: handleSignOut,
+    }),
+    [initializing, submitting, session, error],
+  );
+
   return (
-    <AuthContext.Provider
-      value={{
-        loading,
-        session,
-        error,
-        signInWithEmail: handleSignInWithEmail,
-        signUpWithEmail: handleSignUpWithEmail,
-        signInWithGoogle: handleSignInWithGoogle,
-        signOut: handleSignOut,
-      }}
-    >
-      {loading ? null : children}
+    <AuthContext.Provider value={value}>
+      {initializing ? null : children}
     </AuthContext.Provider>
   );
 }

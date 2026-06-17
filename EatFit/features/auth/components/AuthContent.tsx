@@ -18,12 +18,12 @@ export function AuthContent() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
-  const { signInWithEmail, signUpWithEmail, signInWithGoogle, loading, error } =
+  const { signInWithEmail, signUpWithEmail, signInWithGoogle, submitting, error } =
     useAuth();
 
   const isLogin = mode === "login";
   const isValidEmail = /\S+@\S+\.\S+/.test(email);
-  const canSubmit = isValidEmail && password.length >= 6 && !loading;
+  const canSubmit = isValidEmail && password.length >= 6 && !submitting;
 
   const handleSubmit = () => {
     if (!canSubmit) return;
@@ -91,7 +91,7 @@ export function AuthContent() {
         onPress={handleSubmit}
         disabled={!canSubmit}
       >
-        {loading ? (
+        {submitting ? (
           <ActivityIndicator color={colors.white} />
         ) : (
           <Text style={styles.primaryBtnText}>
