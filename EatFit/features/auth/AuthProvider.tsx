@@ -6,7 +6,6 @@ import {
   type ReactNode,
 } from "react";
 import * as WebBrowser from "expo-web-browser";
-import * as Linking from "expo-linking";
 import { makeRedirectUri } from "expo-auth-session";
 import type { Session } from "@supabase/supabase-js";
 
@@ -65,15 +64,6 @@ export default function AuthProvider({ children }: Props) {
       subscription.unsubscribe();
     };
   }, []);
-
-  // 2) Deep link de regreso del OAuth (cubre arranque en frío)
-  const url = Linking.useURL();
-  useEffect(() => {
-    if (!url) return;
-    // Solo procesar URLs que contengan tokens OAuth (evita llamadas con URLs vacías)
-    if (!url.includes("access_token") && !url.includes("code=")) return;
-    createSessionFromUrl(url).catch((e) => setError(e as Error));
-  }, [url]);
 
   /* ── Handlers: disparan la acción, NO tocan `session` ─────── */
 
