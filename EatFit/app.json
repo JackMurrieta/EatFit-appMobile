@@ -8,17 +8,13 @@
     "icon": "./assets/eatfit-icon-ink.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain"
-    },
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/eatfit-primary.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/eatfit-adaptive-fg.png",
+        "backgroundColor": "#1A1A2E"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -29,7 +25,16 @@
     },
     "plugins": [
       "expo-router",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/eatfit-primary.png",
+          "imageWidth": 260,
+          "resizeMode": "contain",
+          "backgroundColor": "#EBEDEF"
+        }
+      ]
     ],
     "extra": {
       "router": {},
