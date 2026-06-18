@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useAuth } from "@features/auth/useAuth";
+import { useGoogleAuth } from "@features/auth/useGoogleAuth";
 import { colors } from "@shared/theme/colors";
 import styles from "./AuthContent.styles";
 
@@ -18,12 +19,13 @@ export function AuthContent() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
-  const { signInWithEmail, signUpWithEmail, signInWithGoogle, submitting, error } =
-    useAuth();
+  const { signInWithEmail, signUpWithEmail, submitting, error: emailError } = useAuth();
+  const { signInWithGoogle, loading: googleLoading, error: googleError } = useGoogleAuth();
 
   const isLogin = mode === "login";
   const isValidEmail = /\S+@\S+\.\S+/.test(email);
   const canSubmit = isValidEmail && password.length >= 6 && !submitting;
+  const error = emailError ?? googleError;
 
   const handleSubmit = () => {
     if (!canSubmit) return;
@@ -120,13 +122,17 @@ export function AuthContent() {
       </View>
 
       {/* Social */}
-      <Pressable style={styles.socialBtn} onPress={() => signInWithGoogle()}>
-        <Text style={styles.socialText}>Continuar con Google</Text>
+      <Pressable
+        style={styles.socialBtn}
+        onPress={signInWithGoogle}
+        disabled={googleLoading}
+      >
+        {googleLoading ? (
+          <ActivityIndicator color={colors.dark} />
+        ) : (
+          <Text style={styles.socialText}>Continuar con Google</Text>
+        )}
       </Pressable>
-
-      {/*<Pressable style={styles.socialBtn} onPress={}>
-        <Text style={styles.socialText}>Continuar con Apple</Text>
-      </Pressable>*/}
     </View>
   );
 }

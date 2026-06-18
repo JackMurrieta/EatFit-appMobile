@@ -5,8 +5,6 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import * as WebBrowser from "expo-web-browser";
-import { makeRedirectUri } from "expo-auth-session";
 import type { Session } from "@supabase/supabase-js";
 
 import {
@@ -15,20 +13,15 @@ import {
   signInWithEmail,
   signUpWithEmail,
   signOut,
-  getGoogleOAuthUrl,
-  createSessionFromUrl,
 } from "./authService";
 
-WebBrowser.maybeCompleteAuthSession();
-
 export type AuthData = {
-  initializing: boolean; // arranque: ¿ya sabemos si hay sesión?
-  submitting: boolean; // acción en curso (para los botones)
+  initializing: boolean;
+  submitting: boolean;
   session: Session | null;
   error: Error | null;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signUpWithEmail: (email: string, password: string) => Promise<void>;
-  signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -44,7 +37,6 @@ export default function AuthProvider({ children }: Props) {
   const [session, setSession] = useState<Session | null>(null);
   const [error, setError] = useState<Error | null>(null);
 
-  // 1) Sesión inicial + listener (ÚNICA fuente de verdad de `session`)
   useEffect(() => {
     let mounted = true;
 
@@ -55,7 +47,7 @@ export default function AuthProvider({ children }: Props) {
 
     const subscription = subscribeToAuthChanges((next) => {
       if (!mounted) return;
-      setSession(next); // aquí se actualiza la sesión SIEMPRE
+      setSession(next);
       setError(null);
     });
 
@@ -65,13 +57,11 @@ export default function AuthProvider({ children }: Props) {
     };
   }, []);
 
-  /* ── Handlers: disparan la acción, NO tocan `session` ─────── */
-
   async function handleSignInWithEmail(email: string, password: string) {
     try {
       setSubmitting(true);
       setError(null);
-      await signInWithEmail(email, password); // el listener pone la sesión
+      await signInWithEmail(email, password);
     } catch (e) {
       setError(e as Error);
     } finally {
@@ -91,35 +81,10 @@ export default function AuthProvider({ children }: Props) {
     }
   }
 
-  async function handleSignInWithGoogle() {
-    try {
-      setSubmitting(true);
-      setError(null);
-      const redirectTo = makeRedirectUri();
-      const oauthUrl = await getGoogleOAuthUrl(redirectTo);
-      if (!oauthUrl) {
-        setError(new Error("No se pudo obtener la URL de Google"));
-        return;
-      }
-      const result = await WebBrowser.openAuthSessionAsync(
-        oauthUrl,
-        redirectTo,
-      );
-      if (result.type === "success") {
-        await createSessionFromUrl(result.url); // el listener actualiza la sesión
-      }
-      // "cancel" / "dismiss": el usuario cerró el navegador, no es error
-    } catch (e) {
-      setError(e as Error);
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
   async function handleSignOut() {
     try {
       setSubmitting(true);
-      await signOut(); // el listener pondrá session = null
+      await signOut();
     } catch (e) {
       setError(e as Error);
     } finally {
@@ -127,7 +92,6 @@ export default function AuthProvider({ children }: Props) {
     }
   }
 
-  // 3) Memoiza el value para no re-renderizar consumidores de más
   const value = useMemo<AuthData>(
     () => ({
       initializing,
@@ -136,7 +100,6 @@ export default function AuthProvider({ children }: Props) {
       error,
       signInWithEmail: handleSignInWithEmail,
       signUpWithEmail: handleSignUpWithEmail,
-      signInWithGoogle: handleSignInWithGoogle,
       signOut: handleSignOut,
     }),
     [initializing, submitting, session, error],

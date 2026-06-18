@@ -5,7 +5,7 @@
     "scheme": "eatfit",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/eatfit-icon-ink.png",
+    "icon": "./assets/iconEatFit.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "ios": {
@@ -13,7 +13,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/eatfit-adaptive-fg.png",
+        "foregroundImage": "./assets/adaptiveIcon.png",
         "backgroundColor": "#1A1A2E"
       },
       "edgeToEdgeEnabled": true,
@@ -21,7 +21,7 @@
       "package": "com.anonymous.EatFit"
     },
     "web": {
-      "favicon": "./assets/eatfit-icon-ink.png"
+      "favicon": "./assets/iconEatFit.png"
     },
     "plugins": [
       "expo-router",
@@ -29,10 +29,9 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/eatfit-primary.png",
-          "imageWidth": 260,
+          "image": "./assets/splash.png",
           "resizeMode": "contain",
-          "backgroundColor": "#EBEDEF"
+          "backgroundColor": "#E5E7EB"
         }
       ]
     ],
